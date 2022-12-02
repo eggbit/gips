@@ -22,6 +22,7 @@ type ipsRecord struct {
 type ipsData struct {
 	as_int   int
 	as_bytes []byte
+	as_str   string
 }
 
 func New(ips_path string) (*ipsFile, error) {
@@ -32,12 +33,11 @@ func New(ips_path string) (*ipsFile, error) {
 	}
 
 	i := ipsFile{
-		data:  data,
-		index: 5, // Skip the header
+		data: data,
 	}
 
 	// Validate IPS file
-	if string(i.data[:5]) != "PATCH" {
+	if i.read(5).as_str != "PATCH" {
 		return nil, errors.New("invalid IPS file")
 	}
 
@@ -70,7 +70,7 @@ func (ips *ipsFile) Apply(rom_path, out_path string) error {
 func (ips *ipsFile) patch(rom_data []byte) ([]byte, error) {
 	// Loop through all the records in the IPS file until EOF (0x454f46)
 	// TODO: Create new buffer, write new ROM to it instead of modifying the ROM itself
-	for string(ips.data[ips.index:ips.index+3]) != "EOF" {
+	for ips.check(3).as_str != "EOF" {
 		ips.record.offset = ips.read(3).as_int
 		ips.record.size = ips.read(2).as_int
 
@@ -92,14 +92,19 @@ func (ips *ipsFile) patch(rom_data []byte) ([]byte, error) {
 	return rom_data, nil
 }
 
-func (ips *ipsFile) read(num_bytes int) ipsData {
+func (ips *ipsFile) check(num_bytes int) ipsData {
 	data_block := ips.data[ips.index : ips.index+num_bytes]
 
-	i := ipsData{
+	return ipsData{
 		as_int:   int(big.NewInt(0).SetBytes(data_block).Int64()),
 		as_bytes: data_block,
+		as_str:   string(data_block),
 	}
+}
 
+// Same as ipsFile.check() except it incrememnets the position in the file.
+func (ips *ipsFile) read(num_bytes int) ipsData {
+	i := ips.check(num_bytes)
 	ips.index += num_bytes
 
 	return i
