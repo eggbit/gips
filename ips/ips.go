@@ -17,6 +17,7 @@ type ipsRecord struct {
 	size      int // The size of this record's data
 	rle_size  int
 	rle_value int // The value to be copied to the ROM 'rle_size' times.
+	data      []byte
 }
 
 type ipsData struct {
@@ -76,6 +77,13 @@ func (ips *ipsFile) patch(rom_data []byte) ([]byte, error) {
 		if ips.record.size == 0 {
 			ips.record.rle_size = ips.read(2).as_int
 			ips.record.rle_value = ips.read(1).as_int
+			ips.record.data = make([]byte, ips.record.rle_size)
+
+			for i := range ips.record.data {
+				ips.record.data[i] = byte(ips.record.rle_value)
+			}
+		} else {
+			ips.record.data = ips.read(ips.record.size).as_bytes
 		}
 
 		size_req := ips.record.offset + ips.record.size + ips.record.rle_size
@@ -91,16 +99,8 @@ func (ips *ipsFile) patch(rom_data []byte) ([]byte, error) {
 			rom_data = append(rom_data, tmp...)
 		}
 
-		// RLE handling
-		if ips.record.size == 0 {
-			// Write the changes to the ROM
-			for i := 0; i < ips.record.rle_size; i++ {
-				rom_data[ips.record.offset+i] = byte(ips.record.rle_value)
-			}
-		} else {
-			// Write the changes to the ROM
-			copy(rom_data[ips.record.offset:], ips.read(ips.record.size).as_bytes)
-		}
+		// Write the changes to the ROM
+		copy(rom_data[ips.record.offset:], ips.record.data)
 	}
 
 	return rom_data, nil
