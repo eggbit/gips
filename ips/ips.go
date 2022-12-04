@@ -69,16 +69,30 @@ func (ips *ipsFile) Apply(rom_path, out_path string) error {
 
 func (ips *ipsFile) patch(rom_data []byte) ([]byte, error) {
 	// Loop through all the records in the IPS file until EOF (0x454f46)
-	// TODO: Create new buffer, write new ROM to it instead of modifying the ROM itself
 	for ips.check(3).as_str != "EOF" {
 		ips.record.offset = ips.read(3).as_int
 		ips.record.size = ips.read(2).as_int
 
-		// RLE handling
 		if ips.record.size == 0 {
 			ips.record.rle_size = ips.read(2).as_int
 			ips.record.rle_value = ips.read(1).as_int
+		}
 
+		size_req := ips.record.offset + ips.record.size + ips.record.rle_size
+
+		// Resize the ROM if required
+		if size_req >= len(rom_data) {
+			tmp := make([]byte, size_req-len(rom_data))
+
+			for i := range tmp {
+				tmp[i] = 0
+			}
+
+			rom_data = append(rom_data, tmp...)
+		}
+
+		// RLE handling
+		if ips.record.size == 0 {
 			// Write the changes to the ROM
 			for i := 0; i < ips.record.rle_size; i++ {
 				rom_data[ips.record.offset+i] = byte(ips.record.rle_value)
