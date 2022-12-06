@@ -12,13 +12,13 @@ Download the source code:
 git clone https://github.com/eggbit/gips.git
 ```
 
-Navigate to the directory and build:
+Navigate to the directory and build (make sure you have the latest version of Go installed):
 
 ```
 go build
 ```
 
-That's it! You should have a nice little executable for (some) of your IPS patching needs!
+That's it! There aren't any external dependencies so that's all you should have to do to have yourself a nice little executable for most of your IPS patching needs.
 
 ## Usage <a name = "usage"></a>
 
@@ -30,6 +30,4 @@ gips [ips_path] [rom_path]
 If the patching was successful it'll save the patched rom with ```_patched``` appended to the file name. Eg. ```rom.ext``` -> ```rom_patched.ext```
 
 ## What's Missing?
-Right now it can't make use of patches that would make the resulting ROM larger than the ROM that's given. There are certain patches for Gameboy ROMs that turn them into Gameboy Color ROMs, for example. This is planned to be fixed in the future.
-
-The comannd line structure could also be updated. And IPS32 is a thing?
+Right now this is just a general purpose IPS patcher but it could probably be expanded in the future. Apparently IPS32 is a thing and there are a whole bunch of other patching formats I'd like to explore like BPS.
