@@ -59,9 +59,7 @@ func (ips *ipsFile) Apply(rom_path, out_path string) error {
 	}
 
 	// Dump the newly patched ROM
-	err = os.WriteFile(out_path, new_rom, 0664)
-
-	if err != nil {
+	if err := os.WriteFile(out_path, new_rom, 0664); err != nil {
 		return err
 	}
 
