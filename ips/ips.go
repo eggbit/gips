@@ -17,6 +17,13 @@ type ipsRecord struct {
 	size      int // The size of this record's data
 	rle_size  int
 	rle_value int // The value to be copied to the ROM 'rle_size' times.
+	data      []byte
+}
+
+type ipsData struct {
+	as_int   int
+	as_bytes []byte
+	as_str   string
 }
 
 func New(ips_path string) (*ipsFile, error) {
@@ -27,12 +34,11 @@ func New(ips_path string) (*ipsFile, error) {
 	}
 
 	i := ipsFile{
-		data:  data,
-		index: 5, // Skip the header
+		data: data,
 	}
 
 	// Validate IPS file
-	if string(i.data[:5]) != "PATCH" {
+	if i.read(5).as_str != "PATCH" {
 		return nil, errors.New("invalid IPS file")
 	}
 
@@ -53,9 +59,7 @@ func (ips *ipsFile) Apply(rom_path, out_path string) error {
 	}
 
 	// Dump the newly patched ROM
-	err = os.WriteFile(out_path, new_rom, 0664)
-
-	if err != nil {
+	if err := os.WriteFile(out_path, new_rom, 0664); err != nil {
 		return err
 	}
 
@@ -64,39 +68,56 @@ func (ips *ipsFile) Apply(rom_path, out_path string) error {
 
 func (ips *ipsFile) patch(rom_data []byte) ([]byte, error) {
 	// Loop through all the records in the IPS file until EOF (0x454f46)
-	// TODO: Create new buffer, write new ROM to it instead of modifying the ROM itself
-	for string(ips.data[ips.index:ips.index+3]) != "EOF" {
-		ips.record.offset = ips.read(3)
-		ips.record.size = ips.read(2)
+	for ips.check(3).as_str != "EOF" {
+		ips.record.offset = ips.read(3).as_int
+		ips.record.size = ips.read(2).as_int
 
-		// RLE handling
 		if ips.record.size == 0 {
-			ips.record.rle_size = ips.read(2)
-			ips.record.rle_value = ips.read(1)
+			ips.record.rle_size = ips.read(2).as_int
+			ips.record.rle_value = ips.read(1).as_int
+			ips.record.data = make([]byte, ips.record.rle_size)
 
-			// Write the changes to the ROM
-			for i := 0; i < ips.record.rle_size; i++ {
-				rom_data[ips.record.offset+i] = byte(ips.record.rle_value)
+			for i := range ips.record.data {
+				ips.record.data[i] = byte(ips.record.rle_value)
 			}
 		} else {
-			// Write the changes to the ROM
-			copy(rom_data[ips.record.offset:], ips.read_bytes(ips.record.size))
+			ips.record.data = ips.read(ips.record.size).as_bytes
 		}
+
+		size_req := ips.record.offset + ips.record.size + ips.record.rle_size
+
+		// Resize the ROM if required
+		if size_req >= len(rom_data) {
+			tmp := make([]byte, size_req-len(rom_data))
+
+			for i := range tmp {
+				tmp[i] = 0
+			}
+
+			rom_data = append(rom_data, tmp...)
+		}
+
+		// Write the changes to the ROM
+		copy(rom_data[ips.record.offset:], ips.record.data)
 	}
 
 	return rom_data, nil
 }
 
-func (ips *ipsFile) read(bytes int) int {
-	value := int(big.NewInt(0).SetBytes(ips.data[ips.index : ips.index+bytes]).Int64())
-	ips.index += bytes
+func (ips *ipsFile) check(num_bytes int) ipsData {
+	data_block := ips.data[ips.index : ips.index+num_bytes]
 
-	return value
+	return ipsData{
+		as_int:   int(big.NewInt(0).SetBytes(data_block).Int64()),
+		as_bytes: data_block,
+		as_str:   string(data_block),
+	}
 }
 
-func (ips *ipsFile) read_bytes(bytes int) []byte {
-	data := ips.data[ips.index : ips.index+bytes]
-	ips.index += bytes
+// Same as ipsFile.check() except it incrememnets the position in the file.
+func (ips *ipsFile) read(num_bytes int) ipsData {
+	i := ips.check(num_bytes)
+	ips.index += num_bytes
 
-	return data
+	return i
 }
